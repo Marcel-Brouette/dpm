@@ -11,6 +11,8 @@ from sys import stderr, exit
 from subprocess import Popen, PIPE
 import re
 import json
+import pyperclip
+import platform
 
 working_directory  = expanduser("~") + "/.marcel_pass_manager/"
 services_file_name = 'services.json'
@@ -88,9 +90,13 @@ def give_passwd(service_name, print_mode) :
     if print_mode : 
         print("PASS : %s" % (localPassword))
     else : # store the pass in primary clipboard
-        p = Popen(['xclip'], stdin=PIPE)
-        p.communicate(input=localPassword)
-        print("[SUCCESS] Password Ok (%s)" % (service_name))
+        if platform.system() == "Darwin" :
+            pyperclip.copy(localPassword)
+            print("[SUCCESS] Password Ok (%s)" % (service_name))
+        elif platform.system() == "Linux":
+            p = Popen(['xclip'], stdin=PIPE)
+            p.communicate(input=localPassword)
+            print("[SUCCESS] Password Ok (%s)" % (service_name))
 
 
 def delete_service(service_name):
