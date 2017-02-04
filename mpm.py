@@ -59,13 +59,12 @@ def load_config():
         with open(full_path_file, 'a+') as data_file:    
             data_file.seek(0,2) # 'a+' don't put the reference point in the end of file ...
             if data_file.tell() == 0: 
-                is_first_use = True
                 global_data = first_use()
             else : 
                 data_file.seek(0)
                 global_data = config_is_valid(data_file)
-        if is_first_use : save_file()  
-    
+        save_file()
+ 
     return global_data 
      
 def services():
@@ -95,10 +94,12 @@ def config_is_valid(data_file):
     except: 
         fatal_error("[ERROR] The configuration file is not a valid JSON")
     
-    if SERVICES_LIST not in data : data[SERVICES_LIST] = {}
-    if SHARED_CHECK  not in data : data[SHARED_CHECK] = None
+    if SERVICES_LIST not in data : 
+        data[SERVICES_LIST] = {}
+    if SHARED_CHECK  not in data :
+        data[SHARED_CHECK] = None
     if MASTER_CHECK  not in data : 
-        print "Your master password fingerprint seem to be missing"
+        print("Your master password fingerprint seem to be missing")
         data[MASTER_CHECK] = fingerprint(ask_strong_pass("Global password :"))
     
     return data
@@ -274,10 +275,9 @@ def run(args) :
         
     load_config()
         
-    if 'infos' in args : 
-        print(args.__dict__)
+    if 'infos' in args and not args.add : 
         if args.infos is not None : 
-            set_desc(args.service_name, args.info)
+            set_desc(args.service_name, args.infos)
         else : 
             print_desc(args.service_name)
     if   args.delete : delete_service(args.service_name)
@@ -286,17 +286,16 @@ def run(args) :
         if args.add    : 
             initial_config = {
                 PWD_SIZE : args.lenght, 
-                DESC     : args.info, 
+                DESC     : args.infos if 'infos' in args else "", 
                 SHARED   : args.shared
             }
             add_service(args.service_name, **initial_config)
         
-        if 'infos' not in args : 
-            options = {
-                "print" : args.view, 
-                "clipboard": not (args.add and args.encrypt)
-            }
-            passwd(args.service_name, **options) 
+        options = {
+            "print" : args.view, 
+            "clipboard": True
+        }
+        passwd(args.service_name, **options) 
 
 args = get_params()
 run(args)
