@@ -9,15 +9,15 @@ from base64 import b64encode
 from getpass import getpass
 from sys import stderr, exit
 from subprocess import Popen, PIPE
-import pyperclip 
 import platform
+import pyperclip
 import re
 import json
 
-working_directory  = expanduser("~") + "/.marcel_pass_manager/"
-services_file_name = 'services_test.json'
+working_directory  = expanduser("~") + "/.dpm/"
+services_file_name = 'services.json'
 global_data        = None
-description        = '########## MARCEL password manager ##########'
+description        = '########## Drustan Password Manager ##########'
 regex_servicename  = r'^([a-zA-Z\-\_\.0-9])+$'
 
 MIN_SIZE_STRONG_PWD = 16
@@ -153,7 +153,7 @@ def hash(service_name) :
         msg = "Shared password : "
         fp  = shared_pwd_check()
         if fp is None : 
-            print "[WARNING] You try to access a shared service password but you have no master shared password registred"
+            print("[WARNING] You try to access a shared service password but you have no master shared password registred")
             asked_pass = getpass("Enter a master shared password : ")
             load_config()[SHARED_CHECK] = fingerprint(asked_pass)
             fp = fingerprint(asked_pass)

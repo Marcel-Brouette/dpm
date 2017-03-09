@@ -1,0 +1,16 @@
+# Drustan Password Manager
+
+The password manager that does not store your passwords.
+
+## Installation and first run
+
+### Debian
+
+    git clone https://github.com/Marcel-Brouette/dpm.git 
+    mv dpm/dpm.py /usr/local/bin/dpm
+    rm -r dpm/
+    
+    apt-get install python python-pip xclip bash-completion python-pyperclip python-argcomplete python-args
+    activate-global-python-argcomplete
+ 
+    dpm
