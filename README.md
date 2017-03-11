@@ -26,20 +26,20 @@ The password manager that does not store your passwords.
 
         $ help
 
-        $ get [-p] app_name
+        $ get [-p] APP_NAME 
 
         $ app {list,add,update,delete,renew,detail}
 
-            renew app_name
-            detail app_name
-            delete app_name
+            renew APP_NAME
+            detail APP_NAME
+            delete APP_NAME
             list
             add [-l LENGTH] [-k KEY] [-n NOTE] [-s STRENGTH_LEVEL]
             update [-l LENGTH] [-k KEY] [-n NOTE] [-s STRENGTH_LEVEL]
 
         $ master_key {list,add,update,delete}
 
-            add master_key
+            add MASTER_KEY
             list
-            update [-k KEY] [-n NEW_NAME] master_key
-        delete master_key
+            update [-k KEY] [-n NEW_NAME] MASTER_KEY
+            delete MASTER_KEY

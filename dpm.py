@@ -89,27 +89,27 @@ def load_arguments():
     pwds_cmd.add_argument('app_name').completer = autocomplete_services
     pwds_cmd.add_argument('-p', '--print_pwd', action='store_true')
 
-    mkey_add_cmd.add_argument('master_key')
-    mkey_del_cmd.add_argument('master_key')
-    mkey_update_cmd.add_argument('master_key')
+    mkey_add_cmd.add_argument('MASTER_KEY')
+    mkey_del_cmd.add_argument('MASTER_KEY')
+    mkey_update_cmd.add_argument('MASTER_KEY')
     mkey_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
     mkey_update_cmd.add_argument('-n', '--new_name', default=argparse.SUPPRESS)
 
-    apps_add_cmd.add_argument('app_name')
+    apps_add_cmd.add_argument('APP_NAME')
     apps_add_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
     apps_add_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
     apps_add_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
     apps_add_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
 
-    apps_update_cmd.add_argument('app_name').completer = autocomplete_services
+    apps_update_cmd.add_argument('APP_NAME').completer = autocomplete_services
     apps_update_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
     apps_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
     apps_update_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
     apps_update_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
 
-    apps_del_cmd.add_argument('app_name').completer = autocomplete_services
-    apps_renew_cmd.add_argument('app_name').completer = autocomplete_services
-    apps_detail_cmd.add_argument('app_name').completer = autocomplete_services
+    apps_del_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    apps_renew_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    apps_detail_cmd.add_argument('APP_NAME').completer = autocomplete_services
 
     argcomplete.autocomplete(args_parser, False)
     
