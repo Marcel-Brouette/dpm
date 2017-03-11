@@ -17,7 +17,7 @@ The password manager that does not store your passwords.
     # apt install python python-pip xclip bash-completion python-pyperclip python-argcomplete python-args
     # activate-global-python-argcomplete
 
-    // bash_completion must be run by your user .bashrc
+    // bash_completion must be run by your user's .bashrc
     // run a new terminal in order to enable the python completion
 
     $ dpm
