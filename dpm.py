@@ -12,25 +12,28 @@ from base64 import b64encode
 from getpass import getpass
 from sys import stderr
 from sys import exit
+from sys import argv
 from subprocess import Popen
 from subprocess import PIPE
 import pyperclip 
 import platform
 import re
 import json
-import pyperclip
 import platform
 
 working_directory    = expanduser("~") + "/.dpm/"
-services_file_name   = 'services.json'
-global_data          = None
-description          = '########## Drustan Password Manager ##########'
-regex_servicename    = r'^([a-zA-Z\-\_\.0-9])+$'
-allowed_strenght_lvl = [1, 2, 3]
+services_file_name   = 'config.json'
 
-MIN_SIZE_STRONG_PWD = 16
-DEFAULT_PWD_SIZE    = 23
-MIN_PWD_SIZE        = 8
+description          = '########## Drustan Password Manager ##########'
+regex_servicename    = r'^([a-zA-Z\-\_\.0-9\/])+$'
+allowed_strength_lvl = [1, 2, 3]
+
+global_data          = None
+args_parser          = None
+
+MIN_SIZE_STRONG_PWD  = 16
+DEFAULT_PWD_SIZE     = 23
+DEFAULT_STRENGTH_LVL = 2
 
 #### JSON LABELS
 
@@ -42,7 +45,74 @@ PWD_SIZE     = "pwd_size"
 VERSION      = "version"
 NOTE         = "note"
 SHARED       = "shared"
-PWD_STRENGHT = "pwd_strenght"
+PWD_STRENGTH = "pwd_strength"
+
+##########################################################
+################## ARGUMENTS SETTINGS ####################
+##########################################################
+
+def load_arguments():
+    global args_parser
+
+    args_parser = argparse.ArgumentParser(add_help=False)
+    main_sub_cmds = args_parser.add_subparsers(dest='command', title="command")
+    #args_parser.add_argument('service_name', help='the service you want to get the pass').completer = autocomplete_services
+
+    ###############  SUB_COMMANDS 1 ################
+
+    help_cmd = main_sub_cmds.add_parser("help", description="", add_help=False)
+    pwds_cmd = main_sub_cmds.add_parser("get", description="", add_help=False)
+    mkey_cmd = main_sub_cmds.add_parser("master_key", description="", add_help=False)
+    apps_cmd = main_sub_cmds.add_parser("app", description="", add_help=False)
+
+    mkey_sub_cmds = mkey_cmd.add_subparsers(dest='sub_command')
+    apps_sub_cmds = apps_cmd.add_subparsers(dest='sub_command')
+
+    ###############  SUB_COMMANDS 2 ################
+
+    # master_key args :
+    mkey_list_cmd    = mkey_sub_cmds.add_parser('list', description='', add_help=False)
+    mkey_add_cmd     = mkey_sub_cmds.add_parser('add', description='', add_help=False)
+    mkey_update_cmd  = mkey_sub_cmds.add_parser('update', description='', add_help=False)
+    mkey_del_cmd     = mkey_sub_cmds.add_parser('delete', description='', add_help=False)
+
+    # apps args :
+    apps_list_cmd   = apps_sub_cmds.add_parser('list', description='', add_help=False)
+    apps_add_cmd    = apps_sub_cmds.add_parser('add', description='', add_help=False)
+    apps_update_cmd = apps_sub_cmds.add_parser('update', description='', add_help=False)
+    apps_del_cmd    = apps_sub_cmds.add_parser('delete', description='', add_help=False)
+    apps_renew_cmd  = apps_sub_cmds.add_parser('renew', description='', add_help=False)
+    apps_detail_cmd = apps_sub_cmds.add_parser('detail', description='', add_help=False)
+
+    ##############  ARGS ##############
+
+    pwds_cmd.add_argument('app_name').completer = autocomplete_services
+    pwds_cmd.add_argument('-p', '--print_pwd', action='store_true')
+
+    mkey_add_cmd.add_argument('master_key')
+    mkey_del_cmd.add_argument('master_key')
+    mkey_update_cmd.add_argument('master_key')
+    mkey_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
+    mkey_update_cmd.add_argument('-n', '--new_name', default=argparse.SUPPRESS)
+
+    apps_add_cmd.add_argument('app_name')
+    apps_add_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
+    apps_add_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
+    apps_add_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
+    apps_add_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
+
+    apps_update_cmd.add_argument('app_name').completer = autocomplete_services
+    apps_update_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
+    apps_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
+    apps_update_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
+    apps_update_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
+
+    apps_del_cmd.add_argument('app_name').completer = autocomplete_services
+    apps_renew_cmd.add_argument('app_name').completer = autocomplete_services
+    apps_detail_cmd.add_argument('app_name').completer = autocomplete_services
+
+    argcomplete.autocomplete(args_parser, False)
+    
 
 ######################################################
 ################# UTIL FUNCTIONS 
@@ -52,6 +122,65 @@ def fatal_error(msg):
     stderr.write(msg)
     exit(1)
 
+def TODO() : 
+    print("TODO")
+
+##############  CUSTOM HELP ##############
+
+def print_help():
+    header        = "\n##############################################\n"
+    header       += "########## Drustan Password Manager ##########\n\n"
+    global_usage  = "usage: " + argv[0] + " {help,get,master_key,app} [<sub_command>] [[options] [value]]\n\n"
+    detail        = "commands : \n\n"
+    detail += view_cmd_help(commands_tree(args_parser), 1, '')
+    custom_help = header + global_usage + detail
+    print(custom_help)
+
+
+
+def commands_tree(arg_parser) : 
+    subparsers_actions = [
+        action for action in arg_parser._actions if isinstance(action, argparse._SubParsersAction)
+    ]
+    max_usage_size   = 0
+    choices = {}
+    for subparsers_action in subparsers_actions:
+        for choice, subparser in subparsers_action.choices.items():
+            default_help   = subparser.format_help()
+            results        = re.search(r'usage: [^\s\\]* (.*)', default_help)
+            usage          = results.group(1)
+            usage          = re.sub(r'\.', '', usage)
+            max_usage_size = len(usage) if (len(usage) > max_usage_size) else max_usage_size
+            child_choices  = commands_tree(subparser)
+            choices.update({choice : (usage, subparser.description, child_choices)})
+
+    tree = {'max_usage_size' : max_usage_size, 'list_cmd' : choices} if len(choices) != 0 else {}
+    return tree
+
+def view_cmd_help(cmd_tree, level, parent_cmd): 
+    if cmd_tree == {} : 
+        return ''
+
+    cmd_line = ''
+    max_usage_size = cmd_tree['max_usage_size']
+    for cmd_name, choice in sorted(cmd_tree['list_cmd'].iteritems(),key = lambda e:len(e[1][2])):
+        usage, description, cmd_sub_tree = choice
+        if level != 1 : 
+            usage      = usage.replace(parent_cmd + ' ', '')
+            new_parent_cmd = parent_cmd + ' ' + cmd_name
+            eol = "\n"
+        else : 
+            new_parent_cmd = cmd_name
+            usage      = "$ " + usage
+            eol = "\n\n"
+        space_nb   = max_usage_size + 4 - len(usage)
+        cmd_line += ' ' * (3 * level + level) +  usage + (' ' * space_nb) + description + eol
+        cmd_line += view_cmd_help(cmd_sub_tree, level + 1, new_parent_cmd)
+
+    return cmd_line + "\n"
+
+
+##############  configuration functions  ##############
 
 def load_config():
     global global_data
@@ -62,13 +191,12 @@ def load_config():
         with open(full_path_file, 'a+') as data_file:    
             data_file.seek(0,2) # 'a+' don't put the reference point in the end of file ...
             if data_file.tell() == 0: 
-                global_data = first_use()
+                first_use()
             else : 
                 data_file.seek(0)
                 global_data = config_is_valid(data_file)
-        save_file()
+                save_file()
     return global_data 
-
 
 def services():
     return load_config()[SERVICES_LIST]
@@ -158,12 +286,12 @@ def hash(service_name) :
     service_exist  = service_name in services().keys()
     msg            = "[ASK] Master password: "
     fp             = master_pwd_check()
-    strenght_lvl   = 2
+    strength_lvl   = 2
     if service_exist:
         version      = services()[service_name][VERSION]
         shared       = services()[service_name].get(SHARED, False)
         pwd_size     = services()[service_name][PWD_SIZE]
-        strenght_lvl = services()[service_name][PWD_STRENGHT]
+        strength_lvl = services()[service_name][PWD_STRENGTH]
     if shared : 
         msg = "[ASK] Shared password: "
         fp  = shared_pwd_check()
@@ -176,10 +304,10 @@ def hash(service_name) :
 
     globalPassword = ask_passwd(fp, msg) 
     version_string = ' _' * version 
-    if strenght_lvl == 1:
+    if strength_lvl == 1:
         version_string = ' *' * version
         service_hash = b64encode(md5(globalPassword + " " + service_name + version_string).digest())[:12]
-    elif strenght_lvl == 3:
+    elif strength_lvl == 3:
         service_hash = b64encode(sha512(globalPassword + " " + service_name + version_string).digest())[:pwd_size]
     else:
         service_hash  = b64encode(sha512(globalPassword + " " + service_name + version_string).digest())[:pwd_size]
@@ -204,16 +332,27 @@ def give_passwd(service_name, clear_pwd, **options) :
 ######################################################
 
 def first_use():
+    global global_data
+
     print("It seems that you launch DPM for the first time !")
     print("We need some of your inputs in order to use DPM properly :")
     print("")
     ask_global_pass = ask_strong_pass("- Your master password (it won't be stored): ")
     ask_shared_pass = getpass("- A shared master password (you can leave it blank): ")
-    return {
+
+    global_data =  {
         MASTER_CHECK : fingerprint(ask_global_pass), 
         SHARED_CHECK : fingerprint(ask_shared_pass) if ask_shared_pass != '' else None,
         SERVICES_LIST : {}   
     }
+
+    save_file()
+    print("")
+    print("[SUCCESS] DPM Initialization Complete (file: '" + working_directory + services_file_name+ "')")
+    print("===> You are ready to use DPM : ")
+    print_help()
+    exit(0)
+
 
 
 def passwd(service_name, **options) :
@@ -240,10 +379,10 @@ def add_service(service_name, **kwargs):
             VERSION      : kwargs.get(VERSION, 0),
             NOTE         : kwargs.get(NOTE, ""),
             SHARED       : kwargs.get(SHARED, False),
-            PWD_STRENGHT : kwargs.get(PWD_STRENGHT, False)
+            PWD_STRENGTH : kwargs.get(PWD_STRENGTH, False)
         }
         save_file()
-        print("[ADDED] service '%s' correctly added." % service_name)
+        print("[ADDED] service '%s' correctly added : " % service_name)
         print_desc(service_name)
 
 
@@ -266,18 +405,18 @@ def print_note(service_name) :
 def set_note(service_name, note_value):
     save_config_attr(service_name, NOTE, note_value, "note")
 
-def set_strenght_lvl(service_name, level):
-    if level in allowed_strenght_lvl :
-        save_config_attr(service_name, PWD_STRENGHT, level, "security level") 
+def set_strength_lvl(service_name, level):
+    if level in allowed_strength_lvl :
+        save_config_attr(service_name, PWD_STRENGTH, level, "security level") 
     else :  
        fatal_error("[ERROR] unknown security level")    
 
 
-def set_lenght(service_name, pwd_size):
+def set_length(service_name, pwd_size):
     if pwd_size > 0 : 
-        save_config_attr(service_name, PWD_SIZE, pwd_size, "password lenght")    
+        save_config_attr(service_name, PWD_SIZE, pwd_size, "password length")    
     else : 
-        fatal_error("[ERROR] the password lenght must be over 0")
+        fatal_error("[ERROR] the password length must be over 0")
 
 
 def set_shared(service_name):
@@ -291,70 +430,91 @@ def print_desc(service_name):
         fatal_error("[ERROR] can't print description on a service that doesn't exist.")
     else:
         note     = services()[service_name].get(NOTE, "None")
-        lvl      = services()[service_name].get(PWD_STRENGHT, "")
+        lvl      = services()[service_name].get(PWD_STRENGTH, "")
         version  = services()[service_name].get(VERSION, "")
         pwd_size = services()[service_name].get(PWD_SIZE, "")
         shared   = services()[service_name].get(SHARED, "")
-        print("[NOTE] %s" % note)
-        print("[STRENGHT LEVEL] %r" % lvl)
-        print("[VERSION] %s" % version)
-        print("[PWD_SIZE] %s" % pwd_size)
-        print("[SHARED] %s" % shared)
+        print("")
+        print(" NOTE :           %s" % note)
+        print(" STRENGTH LEVEL : %r" % lvl)
+        print(" VERSION :        %s" % version)
+        print(" PWD_SIZE :       %s" % pwd_size)
+        print(" SHARED :         %s" % shared)
+        print("")
 
 ######################################################
 ################# MAIN ROUTINE 
 ######################################################
 
-def get_params():
-    parser_arg = argparse.ArgumentParser(description=description)
-    parser_arg.add_argument('service_name', help='the service you want to get the pass').completer = autocomplete_services
-    parser_arg.add_argument('-p', '--print_pwd', action='store_true' ,help='print the password instead of using clipboard')
-    parser_arg.add_argument('-a', '--add', action='store_true' ,help='add the service into the service list')
-    parser_arg.add_argument('-g', '--grade', type=int, help='[can be used directly with --add] define the strenght level of the generated password')
-    parser_arg.add_argument('-s', '--shared', action='store_true', help='[can be used directly with --add] the service will use the shared key')
-    parser_arg.add_argument('-l', '--lenght', type=int, help='[can be used directly with --add] set the password lenght of a service')
-    parser_arg.add_argument('-n', '--note' , default=argparse.SUPPRESS, nargs='?', help='set the service comment [can be used directly with --add]')
-    parser_arg.add_argument('-d', '--delete', action='store_true' ,help='delete the service from the service list')
-    parser_arg.add_argument('-r', '--renew', action='store_true' ,help='renew the pass of the service')
-    parser_arg.add_argument('-P', '--detail', action='store_true', help='print the detail of the service')
+def run():
 
-    argcomplete.autocomplete(parser_arg, False)
-    return parser_arg.parse_args()
-
-def run(args) :
-    if re.match(regex_servicename, args.service_name) == None: 
-        fatal_error("[ERROR] The service name must contains only the following charset [a-Z, 0-9, '-', '_', '.']\n")
-        
+    load_arguments()
     load_config()
-        
-    if 'note' in args and not args.add: set_note(args.service_name, args.infos)
-    elif args.grade and not args.add: set_strenght_lvl(args.service_name, args.grade)
-    elif args.shared and not args.add: set_shared(args.service_name)
-    elif args.lenght and not args.add: set_lenght(args.service_name, args.lenght)
-    elif args.detail: print_desc(args.service_name)
-    elif args.delete: delete_service(args.service_name)
-    elif args.renew: renew_pwd(args.service_name)
-    elif args.add:
-        if args.lenght == None:
-            args.lenght = DEFAULT_PWD_SIZE
-        initial_config = {
-            PWD_SIZE     : args.lenght if args.lenght else DEFAULT_PWD_SIZE,
-            NOTE         : args.infos if 'infos' in args else "",
-            SHARED       : args.shared,
-            PWD_STRENGHT : args.level if args.level else 2
-        }
-        add_service(args.service_name, **initial_config)
-    else:
+    args = args_parser.parse_args()
+
+    ########## HELP COMMAND #############
+    if args.command == "help" : 
+        print_help()
+
+    ########## GET COMMAND ##############
+    if args.command == "get" : 
         options = {
             "print": args.print_pwd,
             "clipboard": True
         }
-        passwd(args.service_name, **options)
+        passwd(args.app_name, **options)
 
-args = get_params()
-run(args)
+    ############ APP COMMAND ############
+    if args.command == "app" :           
+        if args.sub_command == "list" : 
+            TODO()   
+        else : 
+            if re.match(regex_servicename, args.app_name) == None: 
+                fatal_error("[ERROR] The service name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
+
+            ##### DETAIL
+            if args.sub_command == "detail" : 
+                print_desc(args.app_name)
+
+            ##### RENEW
+            if args.sub_command == "renew" : 
+                renew_pwd(args.app_name)
+
+            ##### DELETE
+            if args.sub_command == "delete" : 
+                delete_service(args.app_name)
+
+            ##### ADD
+            if args.sub_command == "add" : 
+                if args.length == None:
+                    args.length = DEFAULT_PWD_SIZE
+                initial_config = {
+                    PWD_SIZE     : args.length if args.length else DEFAULT_PWD_SIZE,
+                    NOTE         : args.note if 'note' in args else "",
+                    PWD_STRENGTH : args.strength_level if args.strength_level else DEFAULT_STRENGTH_LVL
+                }
+                add_service(args.app_name, **initial_config)
+
+            ##### UPDATE
+            if args.sub_command == "update" : 
+                if 'note'           in args : set_note(args.app_name, args.note)
+                if 'strength_level' in args : set_strength_lvl(args.app_name, args.strength_level)
+                if 'length'         in args : set_length(args.app_name, args.length)
 
 
+    ########## MASTER_KEY COMMAND #######
+    if args.command == "master_key" : 
+        if args.sub_command == "add" : 
+            TODO()
+        if args.sub_command == "list" : 
+            TODO()
+        if args.sub_command == "update" : 
+            TODO()
+        if args.sub_command == "delete" : 
+            TODO()
+
+
+run()
 
 
 
