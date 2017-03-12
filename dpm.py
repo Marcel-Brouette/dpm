@@ -86,7 +86,7 @@ def load_arguments():
 
     ##############  ARGS ##############
 
-    pwds_cmd.add_argument('app_name').completer = autocomplete_services
+    pwds_cmd.add_argument('APP_NAME').completer = autocomplete_services
     pwds_cmd.add_argument('-p', '--print_pwd', action='store_true')
 
     mkey_add_cmd.add_argument('MASTER_KEY')
@@ -462,44 +462,42 @@ def run():
             "print": args.print_pwd,
             "clipboard": True
         }
-        passwd(args.app_name, **options)
+        passwd(args.APP_NAME, **options)
 
     ############ APP COMMAND ############
     if args.command == "app" :           
         if args.sub_command == "list" : 
             TODO()   
         else : 
-            if re.match(regex_servicename, args.app_name) == None: 
+            if re.match(regex_servicename, args.APP_NAME) == None: 
                 fatal_error("[ERROR] The service name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
 
             ##### DETAIL
             if args.sub_command == "detail" : 
-                print_desc(args.app_name)
+                print_desc(args.APP_NAME)
 
             ##### RENEW
             if args.sub_command == "renew" : 
-                renew_pwd(args.app_name)
+                renew_pwd(args.APP_NAME)
 
             ##### DELETE
             if args.sub_command == "delete" : 
-                delete_service(args.app_name)
+                delete_service(args.APP_NAME)
 
             ##### ADD
             if args.sub_command == "add" : 
-                if args.length == None:
-                    args.length = DEFAULT_PWD_SIZE
                 initial_config = {
-                    PWD_SIZE     : args.length if args.length else DEFAULT_PWD_SIZE,
+                    PWD_SIZE     : args.length if 'length' in args else DEFAULT_PWD_SIZE,
                     NOTE         : args.note if 'note' in args else "",
-                    PWD_STRENGTH : args.strength_level if args.strength_level else DEFAULT_STRENGTH_LVL
+                    PWD_STRENGTH : args.strength_level if 'strength_level' in args else DEFAULT_STRENGTH_LVL
                 }
-                add_service(args.app_name, **initial_config)
+                add_service(args.APP_NAME, **initial_config)
 
             ##### UPDATE
             if args.sub_command == "update" : 
-                if 'note'           in args : set_note(args.app_name, args.note)
-                if 'strength_level' in args : set_strength_lvl(args.app_name, args.strength_level)
-                if 'length'         in args : set_length(args.app_name, args.length)
+                if 'note'           in args : set_note(args.APP_NAME, args.note)
+                if 'strength_level' in args : set_strength_lvl(args.APP_NAME, args.strength_level)
+                if 'length'         in args : set_length(args.APP_NAME, args.length)
 
 
     ########## MASTER_KEY COMMAND #######
