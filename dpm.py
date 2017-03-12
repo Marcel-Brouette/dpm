@@ -37,14 +37,14 @@ DEFAULT_STRENGTH_LVL = 2
 
 #### JSON LABELS
 
-MASTER_CHECK   = "master_check"
-SHARED_CHECK   = "shared_check"
+MASTERS_LIST   = "master_keys"
+MASTER_CHECK   = "default_master"
 SERVICES_LIST  = "services"
 
 PWD_SIZE     = "pwd_size"
 VERSION      = "version"
 NOTE         = "note"
-SHARED       = "shared"
+MASTER_KEY   = "master_key"
 PWD_STRENGTH = "pwd_strength"
 
 ##########################################################
@@ -90,20 +90,19 @@ def load_arguments():
     pwds_cmd.add_argument('-p', '--print_pwd', action='store_true')
 
     mkey_add_cmd.add_argument('MASTER_KEY')
-    mkey_del_cmd.add_argument('MASTER_KEY')
-    mkey_update_cmd.add_argument('MASTER_KEY')
-    mkey_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
+    mkey_del_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
+    mkey_update_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
+    mkey_update_cmd.add_argument('-p', '--new_password', action='store_true')
     mkey_update_cmd.add_argument('-n', '--new_name', default=argparse.SUPPRESS)
 
     apps_add_cmd.add_argument('APP_NAME')
     apps_add_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
-    apps_add_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
+    apps_add_cmd.add_argument('-k', '--master_key', default=argparse.SUPPRESS).completer = autocomplete_master_key
     apps_add_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
     apps_add_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
 
     apps_update_cmd.add_argument('APP_NAME').completer = autocomplete_services
     apps_update_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
-    apps_update_cmd.add_argument('-k', '--key', default=argparse.SUPPRESS)
     apps_update_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
     apps_update_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
 
@@ -119,7 +118,7 @@ def load_arguments():
 ######################################################
 
 def fatal_error(msg):
-    stderr.write(msg)
+    stderr.write(msg + "\n")
     exit(1)
 
 def TODO() : 
@@ -201,18 +200,25 @@ def load_config():
 def services():
     return load_config()[SERVICES_LIST]
 
+def master_keys():
+    return load_config()[MASTERS_LIST]
 
-def master_pwd_check():
-    return load_config()[MASTER_CHECK]
+def default_master_check():
+    return load_config()[MASTERS_LIST][MASTER_CHECK]
 
+def master_key_fp(master_key_name):
+    check_master_exist(master_key_name)
+    return load_config()[MASTERS_LIST][master_key_name]
 
-def shared_pwd_check():
-    return load_config()[SHARED_CHECK]
-
+def check_master_exist(master_key_name): 
+    if master_key_name not in master_keys().keys() :
+        fatal_error("[ERROR] the fingerprint of '%s' master key doesn't exist" % master_key_name)
 
 def autocomplete_services(prefix, parsed_args, **kwargs):
     return [service for service in services().keys() if prefix in service and service != '']
 
+def autocomplete_master_key(prefix, parsed_args, **kwargs):
+    return [key for key in master_keys().keys() if prefix in key and key != '']
 
 def save_file():
     with open(working_directory + services_file_name, 'w') as outfile:
@@ -237,13 +243,16 @@ def config_is_valid(data_file):
         data = json.load(data_file)
     except: 
         fatal_error("[ERROR] The configuration file is not a valid JSON")
+    if MASTERS_LIST not in data : 
+        print("[WARN] The configuration file is not valid, Your master password fingerprint seem to be missing")
+        data[MASTERS_LIST] = {}
+        data[MASTERS_LIST][MASTER_CHECK] = fingerprint(ask_strong_pass("[ASK] Initialize your Master password: "))
+    elif MASTER_CHECK not in data[MASTERS_LIST] : 
+        print("[WARN] The configuration file is not valid, Your master password fingerprint seem to be missing")
+        data[MASTERS_LIST][MASTER_CHECK] = fingerprint(ask_strong_pass("[ASK] Initialize your Master password: "))
     if SERVICES_LIST not in data : 
         data[SERVICES_LIST] = {}
-    if SHARED_CHECK  not in data :
-        data[SHARED_CHECK] = None
-    if MASTER_CHECK  not in data : 
-        print("Your master password fingerprint seem to be missing")
-        data[MASTER_CHECK] = fingerprint(ask_strong_pass("[ASK] Initialize your Master password: "))
+        
     return data
 
 
@@ -282,25 +291,16 @@ def ask_passwd(fp, msg):
 def hash(service_name) :
     pwd_size       = DEFAULT_PWD_SIZE
     version        = 0    
-    shared         = False
     service_exist  = service_name in services().keys()
-    msg            = "[ASK] Master password: "
-    fp             = master_pwd_check()
     strength_lvl   = 2
     if service_exist:
-        version      = services()[service_name][VERSION]
-        shared       = services()[service_name].get(SHARED, False)
-        pwd_size     = services()[service_name][PWD_SIZE]
-        strength_lvl = services()[service_name][PWD_STRENGTH]
-    if shared : 
-        msg = "[ASK] Shared password: "
-        fp  = shared_pwd_check()
-        if fp is None : 
-            print "[WARNING] You try to access a shared service password but you have no master shared password registred"
-            asked_pass = getpass("[ASK] Initialize your Shared password: ")
-            load_config()[SHARED_CHECK] = fingerprint(asked_pass)
-            fp = fingerprint(asked_pass)
-            save_file()
+        version         = services()[service_name][VERSION]
+        master_key_name = services()[service_name].get(MASTER_KEY, MASTER_CHECK)
+        pwd_size        = services()[service_name][PWD_SIZE]
+        strength_lvl    = services()[service_name][PWD_STRENGTH]
+
+    fp   = master_key_fp(master_key_name)
+    msg  = "[ASK][%s] password: " % master_key_name
 
     globalPassword = ask_passwd(fp, msg) 
     version_string = ' _' * version 
@@ -315,7 +315,7 @@ def hash(service_name) :
 
 def give_passwd(service_name, clear_pwd, **options) :
     if options.get("print", False) : 
-        print("[SUCCESS] Password: %s (%s)" % (clear_pwd, service_name))
+        print("[SUCCESS][%s] Password: %s " % (service_name, clear_pwd))
     elif options.get("clipboard", True) : 
         if platform.system() == "Linux" : # store the pass in primary clipboard
             try: 
@@ -325,7 +325,7 @@ def give_passwd(service_name, clear_pwd, **options) :
                 fatal_error("[ERROR] Install package xclip or use '-p' option to display the pass")
         else :
             pyperclip.copy(clear_pwd)
-        print("[SUCCESS] Password copied in the primary clipboard (%s)" % (service_name))
+        print("[SUCCESS][%s] Password copied in the primary clipboard." % (service_name))
 
 ######################################################
 ################# MAIN FUNCTIONS 
@@ -338,12 +338,14 @@ def first_use():
     print("We need some of your inputs in order to use DPM properly :")
     print("")
     ask_global_pass = ask_strong_pass("- Your master password (it won't be stored): ")
-    ask_shared_pass = getpass("- A shared master password (you can leave it blank): ")
+    print("")
+    print("If you want to share passwords with a group of people, feel free to registred an additionnal master key.")
 
     global_data =  {
-        MASTER_CHECK : fingerprint(ask_global_pass), 
-        SHARED_CHECK : fingerprint(ask_shared_pass) if ask_shared_pass != '' else None,
-        SERVICES_LIST : {}   
+        SERVICES_LIST : {},
+        MASTERS_LIST  : {
+            MASTER_CHECK : fingerprint(ask_global_pass)
+        }
     }
 
     save_file()
@@ -369,6 +371,14 @@ def delete_service(service_name):
         save_file()
         print("[DELETED] service '%s' correctly deleted" % service_name)
 
+def delete_master_key(master_key_name):
+    key_exist = master_key_name in master_keys().keys() 
+    if not key_exist : 
+        fatal_error("[ERROR] master key not found\n")
+    else:
+        del master_keys()[master_key_name]
+        save_file()
+        print("[DELETED] master_key '%s' correctly deleted" % master_key_name)
 
 def add_service(service_name, **kwargs):
     if service_name in services().keys():
@@ -378,13 +388,19 @@ def add_service(service_name, **kwargs):
             PWD_SIZE     : kwargs.get(PWD_SIZE, DEFAULT_PWD_SIZE),
             VERSION      : kwargs.get(VERSION, 0),
             NOTE         : kwargs.get(NOTE, ""),
-            SHARED       : kwargs.get(SHARED, False),
+            MASTER_KEY   : kwargs.get(MASTER_KEY, False),
             PWD_STRENGTH : kwargs.get(PWD_STRENGTH, False)
         }
         save_file()
-        print("[ADDED] service '%s' correctly added : " % service_name)
-        print_desc(service_name)
+        print("[ADDED] service '%s' correctly added." % service_name)
 
+def add_master_key(master_key_name):
+    if master_key_name in master_keys().keys():
+        print("[ERROR] master key '%s' already exist" % master_key_name)
+    else:
+        master_keys()[master_key_name] = fingerprint(ask_strong_pass("[ASK] Initialize your '%s' password: " % master_key_name))
+        save_file()
+        print("[ADDED] service '%s' correctly added." % master_key_name)
 
 def renew_pwd(service_name):
     if service_name not in services().keys():
@@ -418,28 +434,12 @@ def set_length(service_name, pwd_size):
     else : 
         fatal_error("[ERROR] the password length must be over 0")
 
-
-def set_shared(service_name):
-    if service_name not in services().keys():
-        fatal_error("[ERROR] '%s' service does not exist" % service_name)
-    new_value = not services()[service_name].get(SHARED, True)
-    save_config_attr(service_name, SHARED, new_value, "shared status")
-
 def print_desc(service_name):
     if service_name not in services().keys():
         fatal_error("[ERROR] can't print description on a service that doesn't exist.")
     else:
-        note     = services()[service_name].get(NOTE, "None")
-        lvl      = services()[service_name].get(PWD_STRENGTH, "")
-        version  = services()[service_name].get(VERSION, "")
-        pwd_size = services()[service_name].get(PWD_SIZE, "")
-        shared   = services()[service_name].get(SHARED, "")
         print("")
-        print(" NOTE :           %s" % note)
-        print(" STRENGTH LEVEL : %r" % lvl)
-        print(" VERSION :        %s" % version)
-        print(" PWD_SIZE :       %s" % pwd_size)
-        print(" SHARED :         %s" % shared)
+        print(json.dumps(services()[service_name], indent=4, sort_keys=True))
         print("")
 
 ######################################################
@@ -468,6 +468,7 @@ def run():
     if args.command == "app" :           
         if args.sub_command == "list" : 
             TODO()   
+
         else : 
             if re.match(regex_servicename, args.APP_NAME) == None: 
                 fatal_error("[ERROR] The service name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
@@ -487,9 +488,10 @@ def run():
             ##### ADD
             if args.sub_command == "add" : 
                 initial_config = {
-                    PWD_SIZE     : args.length if 'length' in args else DEFAULT_PWD_SIZE,
-                    NOTE         : args.note if 'note' in args else "",
-                    PWD_STRENGTH : args.strength_level if 'strength_level' in args else DEFAULT_STRENGTH_LVL
+                    PWD_SIZE     : args.length         if 'length'         in args else DEFAULT_PWD_SIZE,
+                    NOTE         : args.note           if 'note'           in args else "",
+                    PWD_STRENGTH : args.strength_level if 'strength_level' in args else DEFAULT_STRENGTH_LVL,
+                    MASTER_KEY   : args.master_key     if 'master_key'     in args else MASTER_CHECK
                 }
                 add_service(args.APP_NAME, **initial_config)
 
@@ -502,15 +504,25 @@ def run():
 
     ########## MASTER_KEY COMMAND #######
     if args.command == "master_key" : 
-        if args.sub_command == "add" : 
-            TODO()
         if args.sub_command == "list" : 
             TODO()
-        if args.sub_command == "update" : 
-            TODO()
-        if args.sub_command == "delete" : 
-            TODO()
 
+        else : 
+            if re.match(regex_servicename, args.MASTER_KEY) == None: 
+                fatal_error("[ERROR] The master key name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
+
+            ##### ADD
+            if args.sub_command == "add" :
+                add_master_key(args.MASTER_KEY) 
+
+            ##### DELETE
+            if args.sub_command == "delete" : 
+                delete_master_key(args.MASTER_KEY)
+
+            ##### UPDATE
+            if args.sub_command == "update" : 
+                if args.new_password  : TODO()
+                if 'new_name' in args : TODO()
 
 run()
 
