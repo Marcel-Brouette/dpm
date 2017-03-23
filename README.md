@@ -7,11 +7,10 @@ The password manager that does not store your passwords.
 ### Debian
 
     $ su // or sudo su
-    # git clone https://github.com/Marcel-Brouette/dpm.git 
-    # mv dpm/dpm.py /usr/local/bin/dpm
-    # chown root:root /usr/local/bin/dpm
-    # chmod 555 /usr/local/bin/dpm
-    # rm -r dpm/
+    # git clone https://github.com/Marcel-Brouette/dpm.git /opt/dpm/ 
+    # ln -s /opt/dpm/dpm.py /usr/local/bin/dpm
+    # chown root:root /usr/local/bin/dpm /opt/dpm/dpm.py
+    # chmod 555 /usr/local/bin/dpm /opt/dpm/dpm.py
 
     # apt update
     # apt install python python-pip xclip bash-completion python-pyperclip python-argcomplete python-args
@@ -21,6 +20,12 @@ The password manager that does not store your passwords.
     // run a new terminal in order to enable the python completion
 
     $ dpm
+
+### Enable completion on zsh
+
+    autoload bashcompinit
+    bashcompinit
+    eval "$(register-python-argcomplete /usr/local/bin/dpm)"
 
 ## Usage
 
