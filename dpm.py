@@ -15,7 +15,7 @@ import re
 import json
 
 working_directory  = expanduser("~") + "/.dpm/"
-services_file_name = 'services.json'
+services_file_name = 'db.json'
 global_data        = None
 description        = '########## Drustan Password Manager ##########'
 regex_servicename  = r'^([a-zA-Z\-\_\.0-9])+$'
