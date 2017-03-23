@@ -22,7 +22,7 @@ import json
 import platform
 
 working_directory    = expanduser("~") + "/.dpm/"
-services_file_name   = 'config.json'
+services_file_name   = 'db.json'
 
 description          = '########## Drustan Password Manager ##########'
 regex_servicename    = r'^([a-zA-Z\-\_\.0-9\/])+$'
@@ -60,55 +60,52 @@ def load_arguments():
 
     ###############  SUB_COMMANDS 1 ################
 
-    help_cmd = main_sub_cmds.add_parser("help", description="", add_help=False)
-    pwds_cmd = main_sub_cmds.add_parser("get", description="", add_help=False)
-    mkey_cmd = main_sub_cmds.add_parser("master_key", description="", add_help=False)
-    apps_cmd = main_sub_cmds.add_parser("app", description="", add_help=False)
+    help_cmd   = main_sub_cmds.add_parser("help", description="", add_help=False)
+    gen_cmd    = main_sub_cmds.add_parser("gen", description="", add_help=False)
+    add_cmd    = main_sub_cmds.add_parser("add", description="", add_help=False)
+    del_cmd    = main_sub_cmds.add_parser("del", description="", add_help=False)
+    list_cmd   = main_sub_cmds.add_parser("list", description="", add_help=False)
+    renew_cmd  = main_sub_cmds.add_parser("renew", description="", add_help=False)
+    update_cmd = main_sub_cmds.add_parser("update", description="", add_help=False)
+    detail_cmd = main_sub_cmds.add_parser("detail", description="", add_help=False)
 
-    mkey_sub_cmds = mkey_cmd.add_subparsers(dest='sub_command')
-    apps_sub_cmds = apps_cmd.add_subparsers(dest='sub_command')
+    add_sub_cmds  = add_cmd.add_subparsers(dest='sub_command')
+    del_sub_cmds  = del_cmd.add_subparsers(dest='sub_command')
+    upd_sub_cmds  = update_cmd.add_subparsers(dest='sub_command')
 
     ###############  SUB_COMMANDS 2 ################
 
-    # master_key args :
-    mkey_list_cmd    = mkey_sub_cmds.add_parser('list', description='', add_help=False)
-    mkey_add_cmd     = mkey_sub_cmds.add_parser('add', description='', add_help=False)
-    mkey_update_cmd  = mkey_sub_cmds.add_parser('update', description='', add_help=False)
-    mkey_del_cmd     = mkey_sub_cmds.add_parser('delete', description='', add_help=False)
-
-    # apps args :
-    apps_list_cmd   = apps_sub_cmds.add_parser('list', description='', add_help=False)
-    apps_add_cmd    = apps_sub_cmds.add_parser('add', description='', add_help=False)
-    apps_update_cmd = apps_sub_cmds.add_parser('update', description='', add_help=False)
-    apps_del_cmd    = apps_sub_cmds.add_parser('delete', description='', add_help=False)
-    apps_renew_cmd  = apps_sub_cmds.add_parser('renew', description='', add_help=False)
-    apps_detail_cmd = apps_sub_cmds.add_parser('detail', description='', add_help=False)
+    add_mkey_cmd  = add_sub_cmds.add_parser('master_key', description='', add_help=False)
+    del_mkey_cmd  = del_sub_cmds.add_parser('master_key', description='', add_help=False) 
+    upd_mkey_cmd  = upd_sub_cmds.add_parser('master_key', description='', add_help=False)
+    upd_app_cmd   = upd_sub_cmds.add_parser('app', description='', add_help=False)
+    add_app_cmd   = add_sub_cmds.add_parser('app', description='', add_help=False)
+    del_app_cmd   = del_sub_cmds.add_parser('app', description='', add_help=False)
 
     ##############  ARGS ##############
 
-    pwds_cmd.add_argument('APP_NAME').completer = autocomplete_services
-    pwds_cmd.add_argument('-p', '--print_pwd', action='store_true')
+    gen_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    gen_cmd.add_argument('-p', '--print_pwd', action='store_true')
 
-    mkey_add_cmd.add_argument('MASTER_KEY')
-    mkey_del_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
-    mkey_update_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
-    mkey_update_cmd.add_argument('-p', '--new_password', action='store_true')
-    mkey_update_cmd.add_argument('-n', '--new_name', default=argparse.SUPPRESS)
+    add_mkey_cmd.add_argument('MASTER_KEY')
+    del_mkey_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
+    upd_mkey_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
 
-    apps_add_cmd.add_argument('APP_NAME')
-    apps_add_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
-    apps_add_cmd.add_argument('-k', '--master_key', default=argparse.SUPPRESS).completer = autocomplete_master_key
-    apps_add_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
-    apps_add_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
+    del_app_cmd.add_argument('APP_NAME').completer = autocomplete_services
 
-    apps_update_cmd.add_argument('APP_NAME').completer = autocomplete_services
-    apps_update_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
-    apps_update_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
-    apps_update_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
+    upd_app_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    upd_app_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
+    upd_app_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
+    upd_app_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
 
-    apps_del_cmd.add_argument('APP_NAME').completer = autocomplete_services
-    apps_renew_cmd.add_argument('APP_NAME').completer = autocomplete_services
-    apps_detail_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    add_app_cmd.add_argument('APP_NAME')
+    add_app_cmd.add_argument('-l', '--length', type=int, default=argparse.SUPPRESS)
+    add_app_cmd.add_argument('-s', '--strength_level', type=int, default=argparse.SUPPRESS)
+    add_app_cmd.add_argument('-k', '--master_key', default=argparse.SUPPRESS).completer = autocomplete_master_key
+    add_app_cmd.add_argument('-n', '--note', default=argparse.SUPPRESS)
+
+    renew_cmd.add_argument('APP_NAME').completer = autocomplete_services
+    detail_cmd.add_argument('APP_NAME').completer = autocomplete_services
 
     argcomplete.autocomplete(args_parser, False)
     
@@ -129,7 +126,7 @@ def TODO() :
 def print_help():
     header        = "\n##############################################\n"
     header       += "########## Drustan Password Manager ##########\n\n"
-    global_usage  = "usage: " + argv[0] + " {help,get,master_key,app} [<sub_command>] [[options] [value]]\n\n"
+    global_usage  = "usage: " + argv[0] + " <command> [<sub_command>] [[options] [value]]\n\n"
     detail        = "commands : \n\n"
     detail += view_cmd_help(commands_tree(args_parser), 1, '')
     custom_help = header + global_usage + detail
@@ -355,7 +352,17 @@ def first_use():
     print_help()
     exit(0)
 
-
+def list_apps() :
+    current_master = None
+    for service in sorted(services().iteritems(),key = lambda e:e[1].get(MASTER_KEY, MASTER_CHECK)):
+        app_name, app_infos = service
+        if current_master != app_infos.get(MASTER_KEY, MASTER_CHECK) : 
+            current_master = app_infos.get(MASTER_KEY, MASTER_CHECK)
+            print("")
+            print(" ### MASTER KEY : %s " % current_master)
+            print("")
+        print((' ' * 4) + app_name)
+    print("")
 
 def passwd(service_name, **options) :
     service_hash = hash(service_name)    
@@ -388,7 +395,7 @@ def add_service(service_name, **kwargs):
             PWD_SIZE     : kwargs.get(PWD_SIZE, DEFAULT_PWD_SIZE),
             VERSION      : kwargs.get(VERSION, 0),
             NOTE         : kwargs.get(NOTE, ""),
-            MASTER_KEY   : kwargs.get(MASTER_KEY, False),
+            MASTER_KEY   : kwargs.get(MASTER_KEY, MASTER_CHECK),
             PWD_STRENGTH : kwargs.get(PWD_STRENGTH, False)
         }
         save_file()
@@ -414,9 +421,7 @@ def print_note(service_name) :
     if service_name in services().keys():
         note = services()[service_name].get(NOTE, "")
         if note is not None and len(note.strip()) > 0 :
-            print("[] : %s" % (note,))
-
-    
+            print("[INFOS] : %s" % note)
 
 def set_note(service_name, note_value):
     save_config_attr(service_name, NOTE, note_value, "note")
@@ -452,77 +457,58 @@ def run():
     load_config()
     args = args_parser.parse_args()
 
-    ########## HELP COMMAND #############
     if args.command == "help" : 
         print_help()
 
-    ########## GET COMMAND ##############
-    if args.command == "get" : 
+    if args.command == "gen" : 
         options = {
             "print": args.print_pwd,
             "clipboard": True
         }
         passwd(args.APP_NAME, **options)
 
-    ############ APP COMMAND ############
-    if args.command == "app" :           
-        if args.sub_command == "list" : 
-            TODO()   
+    if args.command == "renew" :           
+        renew_pwd(args.APP_NAME)
 
-        else : 
-            if re.match(regex_servicename, args.APP_NAME) == None: 
-                fatal_error("[ERROR] The service name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
+    if args.command == "detail" : 
+        print_desc(args.APP_NAME)
 
-            ##### DETAIL
-            if args.sub_command == "detail" : 
-                print_desc(args.APP_NAME)
+    if args.command == "list" : 
+        list_apps()
 
-            ##### RENEW
-            if args.sub_command == "renew" : 
-                renew_pwd(args.APP_NAME)
+    if args.command == "del" : 
 
-            ##### DELETE
-            if args.sub_command == "delete" : 
-                delete_service(args.APP_NAME)
+        if args.sub_command == "app" : 
+            delete_service(args.APP_NAME)
 
-            ##### ADD
-            if args.sub_command == "add" : 
-                initial_config = {
-                    PWD_SIZE     : args.length         if 'length'         in args else DEFAULT_PWD_SIZE,
-                    NOTE         : args.note           if 'note'           in args else "",
-                    PWD_STRENGTH : args.strength_level if 'strength_level' in args else DEFAULT_STRENGTH_LVL,
-                    MASTER_KEY   : args.master_key     if 'master_key'     in args else MASTER_CHECK
-                }
-                add_service(args.APP_NAME, **initial_config)
+        if args.sub_command == "master_key" : 
+            delete_master_key(args.MASTER_KEY)
 
-            ##### UPDATE
-            if args.sub_command == "update" : 
-                if 'note'           in args : set_note(args.APP_NAME, args.note)
-                if 'strength_level' in args : set_strength_lvl(args.APP_NAME, args.strength_level)
-                if 'length'         in args : set_length(args.APP_NAME, args.length)
+    if args.command == "add" : 
 
+        if args.sub_command == "app" : 
+            initial_config = {
+                PWD_SIZE     : args.length         if 'length'         in args else DEFAULT_PWD_SIZE,
+                NOTE         : args.note           if 'note'           in args else "",
+                PWD_STRENGTH : args.strength_level if 'strength_level' in args else DEFAULT_STRENGTH_LVL,
+                MASTER_KEY   : args.master_key     if 'master_key'     in args else MASTER_CHECK
+            }
+            add_service(args.APP_NAME, **initial_config)
 
-    ########## MASTER_KEY COMMAND #######
-    if args.command == "master_key" : 
-        if args.sub_command == "list" : 
-            TODO()
+        if args.sub_command == "master_key" : 
+            add_master_key(args.MASTER_KEY) 
 
-        else : 
-            if re.match(regex_servicename, args.MASTER_KEY) == None: 
-                fatal_error("[ERROR] The master key name must contains only the following charset [a-Z, 0-9, '-', '_', '.', '/']\n")
+    if args.command == "update" : 
 
-            ##### ADD
-            if args.sub_command == "add" :
-                add_master_key(args.MASTER_KEY) 
+        if args.sub_command == "app" : 
+            if 'note'           in args : set_note(args.APP_NAME, args.note)
+            if 'strength_level' in args : set_strength_lvl(args.APP_NAME, args.strength_level)
+            if 'length'         in args : set_length(args.APP_NAME, args.length)
+        
+        if args.sub_command == "master_key" : 
+            if args.new_password  : TODO()
+            if 'new_name' in args : TODO()
 
-            ##### DELETE
-            if args.sub_command == "delete" : 
-                delete_master_key(args.MASTER_KEY)
-
-            ##### UPDATE
-            if args.sub_command == "update" : 
-                if args.new_password  : TODO()
-                if 'new_name' in args : TODO()
 
 run()
 

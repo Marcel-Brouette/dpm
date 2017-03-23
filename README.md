@@ -27,26 +27,34 @@ The password manager that does not store your passwords.
     ##############################################
     ########## Drustan Password Manager ##########
 
-    usage: ./dpm.py {help,get,master_key,app} [<sub_command>] [[options] [value]]
+    usage: ./dpm.py <command> [<sub_command>] [[options] [value]]
 
     commands :
 
         $ help
 
-        $ get [-p] APP_NAME 
+        $ renew APP_NAME
 
-        $ app {list,add,update,delete,renew,detail}
+        $ detail APP_NAME
 
-            renew APP_NAME
-            detail APP_NAME
-            delete APP_NAME
-            list
-            add [-l LENGTH] [-k KEY] [-n NOTE] [-s STRENGTH_LEVEL]
-            update [-l LENGTH] [-k KEY] [-n NOTE] [-s STRENGTH_LEVEL]
+        $ list
 
-        $ master_key {list,add,update,delete}
+        $ gen [-p] APP_NAME
 
-            add MASTER_KEY
-            list
-            update [-k KEY] [-n NEW_NAME] MASTER_KEY
-            delete MASTER_KEY
+        $ add {master_key,app}
+
+            app [-l LENGTH] [-s STRENGTH_LEVEL] [-k MASTER_KEY]
+            master_key MASTER_KEY
+
+        $ del {master_key,app}
+
+            app APP_NAME
+            master_key MASTER_KEY
+
+        $ update {master_key,app}
+
+            app [-l LENGTH] [-n NOTE] [-s STRENGTH_LEVEL] APP_NAME
+            master_key MASTER_KEY
+
+
+
