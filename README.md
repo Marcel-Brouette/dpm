@@ -23,6 +23,7 @@ The password manager that does not store your passwords.
 
 ### Enable completion on zsh
 
+    // in .zsh file : 
     autoload bashcompinit
     bashcompinit
     eval "$(register-python-argcomplete /usr/local/bin/dpm)"
