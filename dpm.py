@@ -114,6 +114,7 @@ def load_arguments():
 ################# UTIL FUNCTIONS 
 ######################################################
 
+
 def fatal_error(msg):
     stderr.write(msg + "\n")
     exit(1)
