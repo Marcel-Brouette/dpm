@@ -69,6 +69,7 @@ def load_arguments():
     renew_cmd  = main_sub_cmds.add_parser("renew", description="", add_help=False)
     update_cmd = main_sub_cmds.add_parser("update", description="", add_help=False)
     detail_cmd = main_sub_cmds.add_parser("detail", description="", add_help=False)
+    export_cmd = main_sub_cmds.add_parser("export", description="", add_help=False)
 
     add_sub_cmds  = add_cmd.add_subparsers(dest='sub_command')
     del_sub_cmds  = del_cmd.add_subparsers(dest='sub_command')
@@ -91,6 +92,7 @@ def load_arguments():
     add_mkey_cmd.add_argument('MASTER_KEY')
     del_mkey_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
     upd_mkey_cmd.add_argument('MASTER_KEY').completer = autocomplete_master_key
+    export_cmd.add_argument('MASTER_KEY', nargs='?').completer = autocomplete_master_key
 
     del_app_cmd.add_argument('APP_NAME').completer = autocomplete_services
 
@@ -449,6 +451,19 @@ def print_desc(service_name):
         print(json.dumps(services()[service_name], indent=4, sort_keys=True))
         print("")
 
+def export_config(key2export): 
+    if key2export is None : 
+        print(json.dumps(load_config(), indent=4, sort_keys=True))
+    else : 
+        data2export = {MASTERS_LIST : {}, SERVICES_LIST : {}}
+        for key in load_config()[MASTERS_LIST] : 
+            if key == key2export : 
+                data2export[MASTERS_LIST][key] = load_config()[MASTERS_LIST][key]
+        for app in load_config()[SERVICES_LIST] : 
+            if load_config()[SERVICES_LIST][app][MASTER_KEY] == key2export : 
+                data2export[SERVICES_LIST][app] = load_config()[SERVICES_LIST][app]
+        print(json.dumps(data2export, indent=4, sort_keys=True))   
+
 ######################################################
 ################# MAIN ROUTINE 
 ######################################################
@@ -471,6 +486,9 @@ def run():
 
     if args.command == "renew" :           
         renew_pwd(args.APP_NAME)
+
+    if args.command == "export" :           
+        export_config(args.MASTER_KEY)
 
     if args.command == "detail" : 
         print_desc(args.APP_NAME)
