@@ -1,19 +1,18 @@
-<script src="https://cdn.jsdelivr.net/npm/vue"></script>
-<script src="js/apps.js"></script>
-<script src="js/crypto.js"></script>
-<script src="js/main.js"></script>
+<script src="js/lib/util.js"></script>
+<script src="js/lib/crypto.js"></script>
+<script src="js/lib/vue.js"></script>
+<script src="js/lib/apps.js"></script>
 
 <div id="app">
-    <p>{{test}}</p>
+    <div>
+      <h1>New key</h1>
+      <input type="text" id="new_key_name"/>
+      <input type="password" id="new_key_pwd"/>
+      <input type="password" id="new_key_pwd_confirm"/>
+      <button v-on:click="newMasterKey">ok</button>
+    </div>
+    <p>{{model}}</p>
+    <input v-on:change="handleFileSelect" type="file" id="files" name="files[]">
 </div>
-      
-<script>
-var yolo = new Vue({
-  el: '#app',
-  data: {
-    test: null
-  }
-})
 
-sha256("tutu").then((val) => {yolo.test = val})
-</script>
+<script src="js/ui.js"></script>
