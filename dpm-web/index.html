@@ -1,0 +1,19 @@
+<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+<script src="js/apps.js"></script>
+<script src="js/crypto.js"></script>
+<script src="js/main.js"></script>
+
+<div id="app">
+    <p>{{test}}</p>
+</div>
+      
+<script>
+var yolo = new Vue({
+  el: '#app',
+  data: {
+    test: null
+  }
+})
+
+sha256("tutu").then((val) => {yolo.test = val})
+</script>
