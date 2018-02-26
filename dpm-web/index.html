@@ -1,18 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link href="css/style.css" rel="stylesheet" type="text/css" />
+    <link href="css/autocomplete.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
 <script src="js/lib/util.js"></script>
 <script src="js/lib/crypto.js"></script>
-<script src="js/lib/vue.js"></script>
+<script src="js/lib/error.js"></script>
 <script src="js/lib/apps.js"></script>
+<script src="js/lib/vue.js"></script>
+<script src="js/lib/components/autocomplete.js"></script>
 
-<div id="app">
-    <div>
-      <h1>New key</h1>
-      <input type="text" id="new_key_name"/>
-      <input type="password" id="new_key_pwd"/>
-      <input type="password" id="new_key_pwd_confirm"/>
-      <button v-on:click="newMasterKey">ok</button>
-    </div>
-    <p>{{model}}</p>
-    <input v-on:change="handleFileSelect" type="file" id="files" name="files[]">
-</div>
+<main id="app">
+    <section style="float: left;width: 60%;margin-top: 20px;">
+      <section id="application_box" class="modal_box">
+        <header>Applications</header>
+        <section class="box_content">
+          <autocomplete :suggestions="apps_completion"  v-on:change="loadApp" v-model="current_app_name"></autocomplete>
+          <select v-model="current_app_config.master_key">
+            <option v-for="(value, key) in model.master_keys">
+              {{ key }}
+            </option>
+          </select><br />
+          <input type="number" v-model="current_app_config.pwd_size" /><br />
+          <input type="text" v-model="current_app_config.note" placeholder="infos on the application"/><br />
+          <span>renewed {{ current_app_config.version }} times</span> <br />
+          <input :disabled="current_app_name.length === 0" v-on:input="generatePwd($event.target.value)" type="password" /><br />
+          <span>{{ generate_pwd }}</span>
+        </section>
+      </section>
+      <section class="modal_box">
+        <header>New key</header>
+        <section class="box_content">
+          <input type="text" ref="new_key_name" placeholder="Name"/><br />
+          <input type="password" ref="new_key_pwd" placeholder="Password"/>
+          <input type="password" ref="new_key_pwd_confirm" placeholder="Confirm password"/>
+          <button v-on:click="newMasterKey">ok</button>
+        </section>
+      </section>
+      <section class="modal_box">
+        <header>Clear Persistent data</header>
+        <section class="box_content">
+          <button v-on:click="clearPersistentData">clear</button>
+        </section>
+      </section>
+      <section class="modal_box">
+        <header>Load file</header>
+        <section class="box_content">
+          <input v-on:change="handleFileSelect" type="file" id="files" name="files[]">
+        </section>
+      </section>
+    </section>
+
+    <section style="float: right;width: 20%;">
+        <h1>List Apps</h1>
+        <pre style="height:570px; overflow:auto; position:relative;">
+          {{ model.services | pretty }}
+        </pre>
+      </section>
+    <section style="float: right;width: 20%;">
+      <h1>List Keys</h1>
+      <pre style="height:570px; overflow:auto; position:relative;">
+          {{ model.master_keys | pretty }}
+      </pre>
+    </section>
+
+  </main>
 
 <script src="js/ui.js"></script>
+</body>
+</html>

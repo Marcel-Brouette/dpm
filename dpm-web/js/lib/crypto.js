@@ -1,13 +1,19 @@
-function sha256(data){ return hash("SHA-256", data) }
-function sha384(data){ return hash("SHA-384", data) }
-function sha512(data){ return hash("SHA-512", data) }
+function sha256(data, hex=true){ return hash("SHA-256", data, hex) }
+function sha384(data, hex=true){ return hash("SHA-384", data, hex) }
+function sha512(data, hex=true){ return hash("SHA-512", data, hex) }
+function base64enc(data){ return window.btoa(data) }
 
-function hash(algorithm, data){
+function hash(algorithm, data, hex=true){
     // WARN : return promise ...
     data = utf8ToBuffer(data)
     return window.crypto.subtle.digest(algorithm, data).then(
         function(hash){
-            return bufferToHex(hash)
+            if (hex){
+                return bufferToHex(hash)
+            }
+            else {
+                return hash
+            }
         }, 
         function(){
             console.error("hash error")
@@ -15,10 +21,24 @@ function hash(algorithm, data){
     )
 }
 
+function hexToBase64(hexstring) {
+    return btoa(hexstring.match(/\w{2}/g).map(function(a) {
+        return String.fromCharCode(parseInt(a, 16));
+    }).join(""));
+}
+
 function utf8ToBuffer(str) {
     let binstr = utf8ToBinaryString(str)
     let buf    = binaryStringToBuffer(binstr)
     return buf
+}
+
+function bufferToBinaryString(buf) {
+    let binstr = Array.prototype.map.call(buf, function (ch) {
+      return String.fromCharCode(ch);
+    }).join('');
+  
+    return binstr;
 }
 
 function binaryStringToBuffer(binstr) {
