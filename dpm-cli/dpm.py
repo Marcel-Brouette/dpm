@@ -319,7 +319,7 @@ def give_passwd(service_name, clear_pwd, **options) :
         if platform.system() == "Linux" : # store the pass in primary clipboard
             try: 
                 p = Popen(['xclip', '-selection', 'p'], stdin=PIPE, close_fds=True)
-                p.communicate(input=clear_pwd.encode('utf-8'))
+                p.communicate(input=clear_pwd)
             except: 
                 fatal_error("[ERROR] Install package xclip or use '-p' option to display the pass")
         else :
