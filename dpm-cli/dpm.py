@@ -1,13 +1,11 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python3
 # PYTHON_ARGCOMPLETE_OK
 
 import argparse
 import argcomplete
 import os
 from os.path import expanduser
-from hashlib import sha224
-from hashlib import sha512
-from md5 import md5
+from hashlib import sha224, sha512, md5
 from base64 import b64encode
 from getpass import getpass
 from sys import stderr
@@ -188,7 +186,7 @@ def load_config():
         is_first_use = False 
         full_path_file = working_directory + services_file_name
         if not os.path.exists(working_directory): os.makedirs(working_directory)
-        with open(full_path_file, 'a+') as data_file:    
+        with open(full_path_file, 'a+', encoding='utf-8') as data_file:    
             data_file.seek(0,2) # 'a+' don't put the reference point in the end of file ...
             if data_file.tell() == 0: 
                 first_use()
@@ -284,7 +282,7 @@ def fingerprint(pwd) :
 
 def ask_passwd(fp, msg):
     global_passwd = getpass(msg)
-    if fingerprint(global_passwd) != fp: 
+    if fingerprint(global_passwd.encode('utf-8')) != fp: 
         fatal_error("[FAILED] Password error\n")
     return global_passwd
 
@@ -303,20 +301,20 @@ def hash(service_name) :
     fp   = master_key_fp(master_key_name)
     msg  = "[ASK][%s] password: " % master_key_name
 
-    globalPassword = ask_passwd(fp, msg) 
+    globalPassword = ask_passwd(fp, msg)
     version_string = ' _' * version 
     if strength_lvl == 1:
         version_string = ' *' * version
-        service_hash = b64encode(md5(globalPassword + " " + service_name + version_string).digest())[:12]
+        service_hash = b64encode(md5(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:12]
     elif strength_lvl == 3:
-        service_hash = b64encode(sha512(globalPassword + " " + service_name + version_string).digest())[:pwd_size]
+        service_hash = b64encode(sha512(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:pwd_size]
     else:
-        service_hash  = b64encode(sha512(globalPassword + " " + service_name + version_string).digest())[:pwd_size]
+        service_hash  = b64encode(sha512(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:pwd_size]
     return service_hash
 
 def give_passwd(service_name, clear_pwd, **options) :
     if options.get("print", False) : 
-        print("[SUCCESS][%s] Password: %s " % (service_name, clear_pwd))
+        print("[SUCCESS][%s] Password: %s " % (service_name, clear_pwd.decode()))
     elif options.get("clipboard", True) : 
         if platform.system() == "Linux" : # store the pass in primary clipboard
             try: 
