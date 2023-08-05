@@ -18,7 +18,8 @@ import platform
 import re
 import json
 import platform
-
+import signal
+import sys
 
 working_directory    = expanduser("~") + "/.dpm/"
 services_file_name   = 'db.json'
@@ -109,15 +110,30 @@ def load_arguments():
     detail_cmd.add_argument('APP_NAME').completer = autocomplete_services
 
     argcomplete.autocomplete(args_parser, False)
-    
+
+######################################################
+################# EXIT PROPERLY ON SIGINT
+
+def signal_handler(sig, frame):
+    if sig == signal.SIGINT : 
+        print("\n")
+        exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 ######################################################
 ################# UTIL FUNCTIONS 
 ######################################################
 
+def warn_msg(msg):
+    no_color='\033[0m'
+    color='\033[1;33m'
+    stderr.write(color + "[WARN] " + msg + no_color + "\n")
 
 def fatal_error(msg):
-    stderr.write(msg + "\n")
+    no_color='\033[0m'
+    color='\033[1;31m'
+    stderr.write(color + "[ERROR] " + msg + no_color + "\n")
     exit(1)
 
 def TODO() : 
@@ -211,7 +227,7 @@ def master_key_fp(master_key_name):
 
 def check_master_exist(master_key_name): 
     if master_key_name not in master_keys().keys() :
-        fatal_error("[ERROR] the fingerprint of '%s' master key doesn't exist" % master_key_name)
+        fatal_error(" the fingerprint of '%s' master key doesn't exist" % master_key_name)
 
 def autocomplete_services(prefix, parsed_args, **kwargs):
     return [service for service in services().keys() if prefix in service and service != '']
@@ -225,7 +241,7 @@ def save_file():
 
 
 def save_config_attr(service_name, key, value, attr_name):
-    error_msg   = "[ERROR] can't set a %s on a service that doesn't exist." % attr_name 
+    error_msg   = "Can't set a %s on a service that doesn't exist." % attr_name 
     success_msg = "[SAVED] '%s' %s saved" % (service_name, attr_name)
     if service_name not in services().keys():
         fatal_error(error_msg)
@@ -241,7 +257,7 @@ def config_is_valid(data_file):
     try: 
         data = json.load(data_file)
     except: 
-        fatal_error("[ERROR] The configuration file is not a valid JSON")
+        fatal_error(" The configuration file is not a valid JSON")
     if MASTERS_LIST not in data : 
         print("[WARN] The configuration file is not valid, Your master password fingerprint seem to be missing")
         data[MASTERS_LIST] = {}
@@ -263,7 +279,7 @@ def ask_strong_pass(msg):
         pwd_is_weak  = len(asked_pass) < MIN_SIZE_STRONG_PWD
         pwd_is_weak |= pwd_is_basic_charset(asked_pass)        
         if pwd_is_weak : 
-            print("[ERROR] Your password is TOO WEAK (size under " + str(MIN_SIZE_STRONG_PWD) + " chars or basic charset only)")
+            warn_msg("Your password is TOO WEAK (size under " + str(MIN_SIZE_STRONG_PWD) + " chars or basic charset only)")
     return asked_pass
 
 
@@ -283,20 +299,24 @@ def fingerprint(pwd) :
 def ask_passwd(fp, msg):
     global_passwd = getpass(msg)
     if fingerprint(global_passwd.encode('utf-8')) != fp: 
-        fatal_error("[FAILED] Password error\n")
+        fatal_error("Bad password\n")
     return global_passwd
 
 
 def hash(service_name) :
-    pwd_size       = DEFAULT_PWD_SIZE
-    version        = 0    
-    service_exist  = service_name in services().keys()
-    strength_lvl   = 2
+    pwd_size        = DEFAULT_PWD_SIZE
+    version         = 0    
+    service_exist   = service_name in services().keys()
+    strength_lvl    = 2
+    service_hash    = False
+    master_key_name = MASTER_CHECK
     if service_exist:
         version         = services()[service_name][VERSION]
         master_key_name = services()[service_name].get(MASTER_KEY, MASTER_CHECK)
         pwd_size        = services()[service_name][PWD_SIZE]
         strength_lvl    = services()[service_name][PWD_STRENGTH]
+    else : 
+        warn_msg(f"'{service_name}' is not in your application list")
 
     fp   = master_key_fp(master_key_name)
     msg  = "[ASK][%s] password: " % master_key_name
@@ -310,6 +330,7 @@ def hash(service_name) :
         service_hash = b64encode(sha512(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:pwd_size]
     else:
         service_hash  = b64encode(sha512(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:pwd_size]
+
     return service_hash
 
 def give_passwd(service_name, clear_pwd, **options) :
@@ -333,7 +354,7 @@ def give_passwd(service_name, clear_pwd, **options) :
                 err_xclip=True
 
             if err_wl_copy and err_xclip :
-                fatal_error("[ERROR] The primary clipboard utility doesn't work\r\n" +
+                fatal_error(" The primary clipboard utility doesn't work : \r\n" +
                             "- if you are running X server, please install xclip \r\n" +
                             "- if you are running wayland, please install wp-clipboard \r\n" +
                             "- You can still use the '-p' option to display the pass")
@@ -389,7 +410,7 @@ def passwd(service_name, **options) :
 def delete_service(service_name):
     service_exist = service_name in services().keys() 
     if not service_exist : 
-        fatal_error("[ERROR] service not found\n")
+        fatal_error("service not found\n")
     else:
         del services()[service_name]
         save_file()
@@ -398,7 +419,7 @@ def delete_service(service_name):
 def delete_master_key(master_key_name):
     key_exist = master_key_name in master_keys().keys() 
     if not key_exist : 
-        fatal_error("[ERROR] master key not found\n")
+        fatal_error("master key not found\n")
     else:
         del master_keys()[master_key_name]
         save_file()
@@ -406,7 +427,7 @@ def delete_master_key(master_key_name):
 
 def add_service(service_name, **kwargs):
     if service_name in services().keys():
-        print("[ERROR] service '%s' already exist" % service_name)
+        fatal_error(f"service '{service_name}' already exist")
     else:
         services()[service_name] = {
             PWD_SIZE     : kwargs.get(PWD_SIZE, DEFAULT_PWD_SIZE),
@@ -416,11 +437,11 @@ def add_service(service_name, **kwargs):
             PWD_STRENGTH : kwargs.get(PWD_STRENGTH, False)
         }
         save_file()
-        print("[ADDED] service '%s' correctly added." % service_name)
+        print(f"[ADDED] service '{service_name}' correctly added.")
 
 def add_master_key(master_key_name):
     if master_key_name in master_keys().keys():
-        print("[ERROR] master key '%s' already exist" % master_key_name)
+        fatal_error("master key '%s' already exist" % master_key_name)
     else:
         master_keys()[master_key_name] = fingerprint(ask_strong_pass("[ASK] Initialize your '%s' password: " % master_key_name))
         save_file()
@@ -428,7 +449,7 @@ def add_master_key(master_key_name):
 
 def renew_pwd(service_name):
     if service_name not in services().keys():
-        fatal_error("[ERROR] can't renew a service that doesn't exist.")
+        fatal_error(" can't renew a service that doesn't exist.")
     else:
         services()[service_name][VERSION] = services()[service_name].get(VERSION, 0) + 1
         save_file()
@@ -447,18 +468,18 @@ def set_strength_lvl(service_name, level):
     if level in allowed_strength_lvl :
         save_config_attr(service_name, PWD_STRENGTH, level, "security level") 
     else :  
-       fatal_error("[ERROR] unknown security level")    
+       fatal_error("Unknown security level")    
 
 
 def set_length(service_name, pwd_size):
     if pwd_size > 0 : 
         save_config_attr(service_name, PWD_SIZE, pwd_size, "password length")    
     else : 
-        fatal_error("[ERROR] the password length must be over 0")
+        fatal_error("The password length must be over 0")
 
 def print_desc(service_name):
     if service_name not in services().keys():
-        fatal_error("[ERROR] can't print description on a service that doesn't exist.")
+        fatal_error("Can't print description on a service that doesn't exist.")
     else:
         print("")
         print(json.dumps(services()[service_name], indent=4, sort_keys=True))
