@@ -8,12 +8,12 @@ The password manager that does not store your passwords.
 
     $ su // or sudo su
     # git clone https://github.com/Marcel-Brouette/dpm.git /opt/dpm/ 
-    # ln -s /opt/dpm/dpm.py /usr/local/bin/dpm
-    # chown root:root /usr/local/bin/dpm /opt/dpm/dpm.py
-    # chmod 555 /usr/local/bin/dpm /opt/dpm/dpm.py
+    # ln -s /opt/dpm/dpm-cli/dpm.py /usr/local/bin/dpm
+    # chown root:root /usr/local/bin/dpm /opt/dpm/dpm-cli/dpm.py
+    # chmod 555 /usr/local/bin/dpm /opt/dpm/dpm-cli/dpm.py
 
     # apt update
-    # apt install python python-pip xclip bash-completion python-pyperclip python-argcomplete python-args
+    # apt install python3 python3-pip xclip bash-completion python3-pyperclip python3-argcomplete python3-args
     # activate-global-python-argcomplete
 
     // bash_completion must be run by your user's .bashrc

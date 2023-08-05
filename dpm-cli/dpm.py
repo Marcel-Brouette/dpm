@@ -317,11 +317,26 @@ def give_passwd(service_name, clear_pwd, **options) :
         print("[SUCCESS][%s] Password: %s " % (service_name, clear_pwd.decode()))
     elif options.get("clipboard", True) : 
         if platform.system() == "Linux" : # store the pass in primary clipboard
+            err_wl_copy=False
+            err_xclip=False
+
+            try: 
+                p = Popen(['wl-copy', '-p'], stdin=PIPE, close_fds=True)
+                p.communicate(input=clear_pwd)
+            except :
+                err_wl_copy=True
+
             try: 
                 p = Popen(['xclip', '-selection', 'p'], stdin=PIPE, close_fds=True)
                 p.communicate(input=clear_pwd)
             except: 
-                fatal_error("[ERROR] Install package xclip or use '-p' option to display the pass")
+                err_xclip=True
+
+            if err_wl_copy and err_xclip :
+                fatal_error("[ERROR] The primary clipboard utility doesn't work\r\n" +
+                            "- if you are running X server, please install xclip \r\n" +
+                            "- if you are running wayland, please install wp-clipboard \r\n" +
+                            "- You can still use the '-p' option to display the pass")
         else :
             pyperclip.copy(clear_pwd)
         print("[SUCCESS][%s] Password copied in the primary clipboard." % (service_name))
