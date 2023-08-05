@@ -161,7 +161,7 @@ def view_cmd_help(cmd_tree, level, parent_cmd):
 
     cmd_line = ''
     max_usage_size = cmd_tree['max_usage_size']
-    for cmd_name, choice in sorted(cmd_tree['list_cmd'].iteritems(),key = lambda e:len(e[1][2])):
+    for cmd_name, choice in sorted(cmd_tree['list_cmd'].items(),key = lambda e:len(e[1][2])):
         usage, description, cmd_sub_tree = choice
         if level != 1 : 
             usage      = usage.replace(parent_cmd + ' ', '')
@@ -371,7 +371,7 @@ def first_use():
 
 def list_apps() :
     current_master = None
-    for service in sorted(services().iteritems(),key = lambda e:e[1].get(MASTER_KEY, MASTER_CHECK)):
+    for service in sorted(services().items(),key = lambda e:e[1].get(MASTER_KEY, MASTER_CHECK)):
         app_name, app_infos = service
         if current_master != app_infos.get(MASTER_KEY, MASTER_CHECK) : 
             current_master = app_infos.get(MASTER_KEY, MASTER_CHECK)
