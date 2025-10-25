@@ -190,8 +190,6 @@ def commands_tree(arg_parser) :
             choices.update({choice : (usage, subparser.description, child_choices)})
 
     tree = {'max_usage_size' : max_usage_size, 'list_cmd' : choices} if len(choices) != 0 else {}
-    # pretty print the tree
-    print(json.dumps(tree, indent=4))
     return tree
 
 def view_cmd_help(cmd_tree, level, parent_cmd): 
@@ -452,7 +450,7 @@ def give_passwd(service_name, clear_pwd, **options) :
                 pyper = True
         else :
             pyper = True
-
+            
         if pyper :
             pyperclip.copy(clear_pwd)
             success_msg("[SUCCESS][%s] Password copied in the clipboard." % (service_name))
