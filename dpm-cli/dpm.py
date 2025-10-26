@@ -3,7 +3,7 @@
 
 from os.path import expanduser
 from hashlib import sha224, sha512, pbkdf2_hmac
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from base64 import b85encode
 from getpass import getpass
 from sys import stderr
@@ -11,6 +11,8 @@ from sys import exit
 from sys import argv
 from subprocess import Popen
 from subprocess import PIPE
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 import pyperclip, platform, signal, random, string, time, keyutils, json, re, os, argcomplete, argparse
 
 
@@ -19,7 +21,7 @@ services_file_name   = 'db.json'
 
 description          = '########## Drustan Password Manager ##########'
 regex_servicename    = r'^([a-zA-Z\-\_\.0-9\/])+$'
-allowed_PWD_TYPE     = ['SHA512', 'PBKDF2']
+allowed_PWD_TYPE     = ['SHA512', 'PBKDF2', 'AES256']
 
 global_data          = None
 args_parser          = None
@@ -120,6 +122,8 @@ def load_arguments():
     add_app_cmd.add_argument('-ng', '--no-gen', action='store_true', help='Skip password generation after adding the app')
     add_app_cmd.add_argument('-c','--charset', nargs='+', choices=LIST_CHARSET, default=argparse.SUPPRESS, help='Charsets to include in password generation')
     add_app_cmd.add_argument('-cs','--custom-special', default=argparse.SUPPRESS, help='Custom special characters set')
+    add_app_cmd.add_argument('--store', action='store_true', help='Store encrypted password (less secure, for non-changable passwords)')
+    add_app_cmd.add_argument('--store_pwd', default=argparse.SUPPRESS, help='Password to store when using --store mode')
 
     renew_cmd.add_argument('APP_NAME', help='Name of the app to renew password for').completer = autocomplete_services
     detail_cmd.add_argument('APP_NAME', help='Name of the app to show details for').completer = autocomplete_services
@@ -387,29 +391,53 @@ def get_service(service_name):
             'pwd_charset': list(DEFAULT_PWD_CHARSET.values())
         }
 
+def encrypt_aes256ctr(data, key):
+    if len(key) < 12: 
+        fatal_error("Encryption Key is too short (min 12 chars)")
+    """Encrypt data using AES256-CTR mode with deterministic nonce"""
+    key_bytes = sha512(key.encode()).digest()[:32]
+    nonce_seed = sha512((key + "DPMAES256CTR").encode()).digest()[:16]
+    ctr = modes.CTR(nonce_seed)
+    cipher = Cipher(algorithms.AES(key_bytes), ctr, backend=default_backend())
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(data.encode()) + encryptor.finalize()
+
+    return b64encode(encrypted).decode('utf-8')
+
+def decrypt_aes256ctr(encrypted_data, key):
+    """Decrypt data using AES256-CTR mode with deterministic nonce"""
+    key_bytes = sha512(key.encode()).digest()[:32]
+    nonce_seed = sha512((key + "DPMAES256CTR").encode()).digest()[:16]
+    ctr = modes.CTR(nonce_seed)
+    encrypted = b64decode(encrypted_data.encode())
+    cipher = Cipher(algorithms.AES(key_bytes), ctr, backend=default_backend())
+    decryptor = cipher.decryptor()
+    decrypted = decryptor.update(encrypted) + decryptor.finalize()
+    
+    return decrypted.decode('utf-8')
+
 def hash(service_name, **options) :
     master_pwd = options.get("master_pwd", None) # argument from command line
-    service_config = get_service(service_name)
-    
-    pwd_size = service_config['pwd_size']
-    pwd_charset = service_config['pwd_charset']
-    pwd_type = service_config['pwd_type']
-    version = service_config['version']
+    service_config  = get_service(service_name)
     master_key_name = service_config['master_key_name']
-    service_hash = False
-
+    pwd_size        = service_config['pwd_size']
+    pwd_charset     = service_config['pwd_charset'].copy()
+    pwd_type        = service_config['pwd_type']
+    version         = service_config['version']
+    service_hash    = False
+    
     fp = master_key_fp(master_key_name)
 
     if is_keyring_enabled() and master_pwd is None : 
-         master_pwd = retrieve_master_key(master_key_name)
+        master_pwd = retrieve_master_key(master_key_name)
 
     globalPassword = ask_passwd(fp, master_pwd=master_pwd, master_key_name=master_key_name)    
-    version_string = ' _' * version 
 
     if is_keyring_enabled() and not keyring_contains(master_key_name):
         store_master_key(master_key_name, globalPassword)
     
     if pwd_type == 'SHA512':
+        version_string = ' _' * version 
         service_hash = b64encode(sha512(f'{globalPassword} {service_name}{version_string}'.encode()).digest())[:pwd_size]
         service_hash = service_hash.decode('utf-8')
     else: # PBKDF2
@@ -550,8 +578,22 @@ def list_apps() :
 ################## GEN COMMAND ##################
 
 def passwd(service_name, **options) :
-    service_hash = hash(service_name, **options)    
-    give_passwd(service_name, service_hash, **options)
+    service_config = get_service(service_name)
+    pwd_type = service_config['pwd_type']
+    
+    if pwd_type == 'AES256':
+        # For AES256 mode: get PBKDF2 hash from hash(), then decrypt stored password
+        stored_password = services()[service_name].get('stored_password', None)
+        if stored_password is None:
+            fatal_error("No stored password found for this service")
+        
+        service_hash_key = hash(service_name, **options)
+        service_password = decrypt_aes256ctr(stored_password, service_hash_key)
+    else:
+        # For SHA512 or PBKDF2 mode: generate password normally
+        service_password = hash(service_name, **options)
+    
+    give_passwd(service_name, service_password, **options)
     print_note(service_name)
 
 ################## DELETE COMMAND ##################
@@ -576,18 +618,61 @@ def delete_master_key(master_key_name):
 
 ################## ADD COMMAND ##################
 
+def handle_add_app(app_name, args):
+    """Handle the add app command"""
+    store_mode = hasattr(args, 'store') and args.store
+    charset = build_charset(
+        selected_charsets=args.charset if 'charset' in args else None,
+        custom_special=args.custom_special if 'custom_special' in args else None
+    )
+    initial_config = {
+        PWD_SIZE     : args.length         if 'length'         in args else DEFAULT_PWD_SIZE,
+        NOTE         : args.note           if 'note'           in args else "",
+        MASTER_KEY   : args.master_key     if 'master_key'     in args else MASTER_CHECK,
+        PWD_TYPE     : args.pwd_type       if 'pwd_type'       in args else DEFAULT_PWD_TYPE,
+        PWD_CHARSET  : charset
+    }
+    add_service(app_name, **initial_config)
+    
+    if store_mode:
+        service_hash = hash(app_name) 
+        enable_stored_mode(app_name, service_hash, args.store_pwd if 'store_pwd' in args else None)
+    
+    # generate password (unless --no-gen is specified or in store mode)
+    if not store_mode and (not hasattr(args, 'no_gen') or not args.no_gen):
+        options = {"clipboard": True}
+        passwd(app_name, **options)
+
+def enable_stored_mode(service_name, service_hash, password_to_store):
+    """Add a service with stored encrypted password"""    
+    warn_msg("WARNING: Using stored password mode is less secure.")
+    warn_msg("WARNING: The password cannot be accessed from another machine.")
+    warn_msg("WARNING: This password cannot be renewed.")
+    
+    if password_to_store is None:
+        password_to_store = getpass("Enter the password to store: ")
+
+    # Encrypt the password using the hash key
+    stored_password = encrypt_aes256ctr(password_to_store, service_hash)
+    services()[service_name][PWD_TYPE] = 'AES256'
+    services()[service_name]['stored_password'] = stored_password
+    save_file()
+    success_msg(f"[ADDED] stored service '{service_name}' correctly added.")
+
 def add_service(service_name, **kwargs):
     if service_name in services().keys():
         fatal_error(f"service '{service_name}' already exist")
     else:
-        services()[service_name] = {
-            PWD_SIZE     : kwargs.get(PWD_SIZE, DEFAULT_PWD_SIZE),
-            VERSION      : kwargs.get(VERSION, 0),
-            NOTE         : kwargs.get(NOTE, ""),
-            MASTER_KEY   : kwargs.get(MASTER_KEY, MASTER_CHECK),
-            PWD_TYPE     : kwargs.get(PWD_TYPE, DEFAULT_PWD_TYPE),
-            PWD_CHARSET  : kwargs.get(PWD_CHARSET, build_charset())
+        service_config = {
+            PWD_SIZE      : kwargs.get(PWD_SIZE, DEFAULT_PWD_SIZE),
+            VERSION       : kwargs.get(VERSION, 0),
+            NOTE          : kwargs.get(NOTE, ""),
+            MASTER_KEY    : kwargs.get(MASTER_KEY, MASTER_CHECK),
+            PWD_TYPE      : kwargs.get(PWD_TYPE, DEFAULT_PWD_TYPE),
+            PWD_CHARSET   : kwargs.get(PWD_CHARSET, build_charset())
         }
+
+        services()[service_name] = service_config
         save_file()
         success_msg(f"[ADDED] service '{service_name}' correctly added.")
 
@@ -605,6 +690,9 @@ def renew_pwd(service_name):
     if service_name not in services().keys():
         fatal_error(" can't renew a service that doesn't exist.")
     else:
+        service_config = services()[service_name]
+        if service_config.get(PWD_TYPE) == 'AES256':
+            fatal_error("Cannot renew stored passwords. This service uses stored password mode.")
         services()[service_name][VERSION] = services()[service_name].get(VERSION, 0) + 1
         save_file()
         print("[RENEWED] '%s' password correctly renewed" % service_name)
@@ -744,7 +832,7 @@ def run():
     # Si aucun argument n'est fourni, afficher le help
     if not hasattr(args, 'command') or args.command is None:
         print_help()
-        return
+        exit(0)
 
     if args.command == "help" : 
         print_help()
@@ -783,24 +871,7 @@ def run():
     if args.command == "add" : 
 
         if args.sub_command == "app" : 
-            # save new app
-            charset = build_charset(
-                selected_charsets=args.charset if 'charset' in args else None,
-                custom_special=args.custom_special if 'custom_special' in args else None
-            )
-            initial_config = {
-                PWD_SIZE     : args.length         if 'length'         in args else DEFAULT_PWD_SIZE,
-                NOTE         : args.note           if 'note'           in args else "",
-                MASTER_KEY   : args.master_key     if 'master_key'     in args else MASTER_CHECK,
-                PWD_TYPE     : args.pwd_type       if 'pwd_type'       in args else DEFAULT_PWD_TYPE,
-                PWD_CHARSET  : charset
-            }
-            add_service(args.APP_NAME, **initial_config)
-
-            # generate password (unless --no-gen is specified)
-            if not hasattr(args, 'no_gen') or not args.no_gen:
-                options = {"clipboard": True}
-                passwd(args.APP_NAME, **options)
+            handle_add_app(args.APP_NAME, args)
             
 
         if args.sub_command == "master_key" : 
@@ -819,6 +890,9 @@ def run():
             must_update_mk_pwd = hasattr(args, 'new_password') and args.new_password
             if must_update_mk_pwd : update_master_key_password(args.MASTER_KEY, args.new_password)
             if 'new_name' in args : update_master_key_name(args.MASTER_KEY, args.new_name)
+    
+
+    exit(0)
 
 
 run()
