@@ -16,8 +16,8 @@ from cryptography.hazmat.backends import default_backend
 import pyperclip, platform, signal, random, string, time, keyutils, json, re, os, argcomplete, argparse
 
 
-working_directory    = expanduser("~") + "/.dpm/"
-services_file_name   = 'db.json'
+working_directory    = expanduser("~") + "/.dpm_test/"
+services_file_name   = 'db_test.json'
 
 description          = '########## Drustan Password Manager ##########'
 regex_servicename    = r'^([a-zA-Z\-\_\.0-9\/])+$'
@@ -175,7 +175,7 @@ def print_help():
     detail += view_cmd_help(commands_tree(args_parser), 1, '')
     custom_help = header + global_usage + detail
     print(custom_help)
- 
+
 def commands_tree(arg_parser) : 
     subparsers_actions = [
         action for action in arg_parser._actions if isinstance(action, argparse._SubParsersAction)
@@ -240,15 +240,21 @@ def config():
 def services():
     return config()[SERVICES_LIST]
 
-def is_keyring_enabled():
-    return KEYRING_STORAGE in config()[MASTERS_LIST] and config()[MASTERS_LIST][KEYRING_STORAGE]
+def is_keyring_enabled(master_key_name=None):
+    if master_key_name is None:
+        master_key_name = MASTER_CHECK
+    master_key_data = config()[MASTERS_LIST].get(master_key_name, {})
+    return isinstance(master_key_data, dict) and master_key_data.get(KEYRING_STORAGE, False)
 
 def master_keys():
     return config()[MASTERS_LIST]
 
 def master_key_fp(master_key_name):
     check_master_exist(master_key_name)
-    return config()[MASTERS_LIST][master_key_name]
+    master_key_data = config()[MASTERS_LIST][master_key_name]
+    if isinstance(master_key_data, dict):
+        return master_key_data['key']
+    return master_key_data
 
 def check_master_exist(master_key_name): 
     if master_key_name not in master_keys().keys() :
@@ -425,15 +431,15 @@ def hash(service_name, **options) :
     pwd_type        = service_config['pwd_type']
     version         = service_config['version']
     service_hash    = False
-    
+
     fp = master_key_fp(master_key_name)
 
-    if is_keyring_enabled() and master_pwd is None : 
+    if is_keyring_enabled(master_key_name) and master_pwd is None : 
         master_pwd = retrieve_master_key(master_key_name)
 
     globalPassword = ask_passwd(fp, master_pwd=master_pwd, master_key_name=master_key_name)    
 
-    if is_keyring_enabled() and not keyring_contains(master_key_name):
+    if is_keyring_enabled(master_key_name) and not keyring_contains(master_key_name):
         store_master_key(master_key_name, globalPassword)
     
     if pwd_type == 'SHA512':
@@ -544,8 +550,10 @@ def first_use():
     global_data =  {
         SERVICES_LIST : {},
         MASTERS_LIST  : {
-            MASTER_CHECK : fingerprint(ask_global_pass),
-            KEYRING_STORAGE : keyring_choice.lower() == 'y'
+            MASTER_CHECK : {
+                "key": fingerprint(ask_global_pass),
+                KEYRING_STORAGE: keyring_choice.lower() == 'y'
+            }
         }
     }
     
@@ -680,7 +688,16 @@ def add_master_key(master_key_name):
     if master_key_name in master_keys().keys():
         fatal_error("master key '%s' already exist" % master_key_name)
     else:
-        master_keys()[master_key_name] = fingerprint(ask_strong_pass("[ASK] Initialize your '%s' password: " % master_key_name))
+        master_key_fp = fingerprint(ask_strong_pass("[ASK] Initialize your '%s' password: " % master_key_name))
+        
+        print("")
+        print("Do you want to store this master key in the kernel keyring? Then you won't be asked for it each time. (y/N): ", end='')
+        keyring_choice = input().lower()
+        
+        master_keys()[master_key_name] = {
+            "key": master_key_fp,
+            KEYRING_STORAGE: keyring_choice == 'y'
+        }
         save_file()
         print("[ADDED] service '%s' correctly added." % master_key_name)
 
@@ -748,7 +765,10 @@ def update_master_key_password(master_key_name, new_password):
     warn_msg(f"WARNING: all passwords using this master key will be invalidated, are you sure you want to continue? (y/N)")
     if input().lower() == 'y':
         new_fp = fingerprint(ask_strong_pass(f"[ASK] Enter new password for '{master_key_name}': "))
-        master_keys()[master_key_name] = new_fp
+        
+        # Get existing remember state if it exists
+        master_keys()[master_key_name]['key'] = new_fp
+        
         save_file()
         success_msg(f"[UPDATED] Master key '{master_key_name}' password updated")
         
@@ -847,38 +867,25 @@ def run():
 
     if args.command == "renew" :           
         renew_pwd(args.APP_NAME)
-
     if args.command == "export" :           
         export_config(args.MASTER_KEY)
-
     if args.command == "detail" : 
         print_desc(args.APP_NAME)
-
     if args.command == "revoke" :
         revoke_command(args.MASTER_KEY)
-
     if args.command == "list" : 
         list_apps()
-
     if args.command == "del" : 
-
         if args.sub_command == "app" : 
             delete_service(args.APP_NAME)
-
         if args.sub_command == "master_key" : 
             delete_master_key(args.MASTER_KEY)
-
     if args.command == "add" : 
-
         if args.sub_command == "app" : 
             handle_add_app(args.APP_NAME, args)
-            
-
         if args.sub_command == "master_key" : 
             add_master_key(args.MASTER_KEY) 
-
     if args.command == "update" : 
-
         if args.sub_command == "app" : 
             if 'note'           in args : set_note(args.APP_NAME, args.note)
             if 'length'         in args : set_length(args.APP_NAME, args.length)
@@ -890,10 +897,8 @@ def run():
             must_update_mk_pwd = hasattr(args, 'new_password') and args.new_password
             if must_update_mk_pwd : update_master_key_password(args.MASTER_KEY, args.new_password)
             if 'new_name' in args : update_master_key_name(args.MASTER_KEY, args.new_name)
-    
 
     exit(0)
-
 
 run()
 
